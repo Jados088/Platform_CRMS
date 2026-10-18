@@ -1,0 +1,4 @@
+<?php require __DIR__.'/../includes/app.php'; need('System Administrator');head('Audit log');$f=trim($_GET['f']??'');?>
+<form class="pagebar"><input name="f" value="<?=e($f)?>" placeholder="Filter by action or record type" class="form-control w-auto"><button class="btn btn-primary">Filter</button></form>
+<div class="card"><div class="card-body table-responsive p-0"><table class="table table-hover table-sm"><thead><tr><th>When<th>User<th>Action<th>Record<th>Details<th>IP</thead>
+<?php foreach(q('SELECT a.*,u.first_name,u.last_name FROM audit_logs a LEFT JOIN users u USING(user_id) WHERE a.action LIKE ? OR a.entity_type LIKE ? ORDER BY audit_log_id DESC LIMIT 300',["%$f%","%$f%"])->fetchAll() as $x)echo '<tr><td>'.e($x['created_at']).'<td>'.e($x['first_name'].' '.$x['last_name']).'<td>'.e($x['action']).'<td>'.e($x['entity_type'].' #'.$x['entity_id']).'<td>'.e($x['description']).'<td>'.e($x['ip_address']).'</tr>';?></table></div></div><?php foot();

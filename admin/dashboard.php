@@ -1,0 +1,10 @@
+<?php require __DIR__.'/../includes/app.php';need('System Administrator');head('Administrator dashboard');tiles([['users.php','Users','people-fill'],['vehicles.php','Vehicles','car-front'],['drivers.php','Drivers','person-vcard'],['maintenance.php','Maintenance','tools'],['reports.php','Reports','bar-chart-line'],['audit.php','Audit log','shield-check'],['settings.php','Settings','gear']]);
+echo '<div class="row g-3 mb-4">';
+kpi('Users',one('SELECT COUNT(*) FROM users'),'people');kpi('Customers',one('SELECT COUNT(*) FROM customers'),'person-badge');kpi('Vehicles',one('SELECT COUNT(*) FROM vehicles'),'car-front');kpi('Drivers',one('SELECT COUNT(*) FROM drivers'),'person-vcard');
+kpi('Active rentals',one("SELECT COUNT(*) FROM rentals WHERE status IN('active','overdue')"),'key','rentals.php');kpi('Payments to validate',one("SELECT COUNT(*) FROM payments WHERE status='pending'"),'cash-coin','finance.php?tab=pay');
+kpi('Revenue collected',money(one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status IN('completed','partially_refunded')")),'graph-up','reports.php');kpi('Failed logins/denied (24h)',one("SELECT COUNT(*) FROM audit_logs WHERE result<>'success' AND created_at>NOW()-INTERVAL 1 DAY"),'shield-exclamation');
+echo '</div><div class="row g-4"><div class="col-lg-4">';
+panel('Users by role',['Role','Users'],array_map(fn($x)=>[e($x['role_name']),$x['n']],q('SELECT r.role_name,COUNT(u.user_id) n FROM roles r LEFT JOIN users u USING(role_id) GROUP BY r.role_id')->fetchAll()));
+echo '</div><div class="col-lg-8">';
+panel('Recent activity',['When','User','Action','Record'],array_map(fn($x)=>[e($x['created_at']),e($x['first_name'].' '.$x['last_name']),e($x['action']),e($x['entity_type'].' #'.$x['entity_id'])],q('SELECT a.*,u.first_name,u.last_name FROM audit_logs a LEFT JOIN users u USING(user_id) ORDER BY audit_log_id DESC LIMIT 8')->fetchAll()),null,'No activity recorded yet.');
+echo '</div></div>';foot();
