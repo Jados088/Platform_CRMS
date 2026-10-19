@@ -8,4 +8,4 @@ if($_SERVER['REQUEST_METHOD']==='POST'){chk();$u=q('SELECT u.*,r.role_name FROM 
 <?php if($f)echo '<div class="alert alert-success" role="status">'.e($f[0]).'</div>';if(!empty($err))echo '<div class="alert alert-danger" role="alert">'.e($err).'</div>';?>
 <form method="post"><?=csrf_f()?><label class="form-label" for="email">Email</label><input id="email" name="email" type="email" autocomplete="username" class="form-control mb-3" required>
 <label class="form-label" for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" class="form-control mb-3" required><button class="btn btn-primary w-100">Sign in</button></form>
-<p class="mt-4 mb-0 small text-center">New customer? <a href="register.php">Create an account</a></p></div><footer class="auth-footer">&copy; <?=date('Y')?> CRMS · Car Rental Management System</footer></main></body></html>
+<p class="mt-4 mb-0 small text-center">New customer? <a href="register.php">Create an account</a></p></div><footer class="auth-footer">&copy; <?=date('Y')?> CRMS · Car Rental Management System</footer></main><script src="assets/app.js"></script></body></html>

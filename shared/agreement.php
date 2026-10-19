@@ -52,8 +52,13 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                 if(!in_array($method,$methods,true))throw new RuntimeException('Select a valid payment method.');
                 $reference=trim($_POST['ref']??'');
                 q("INSERT INTO payments(payment_number,invoice_id,amount,payment_method,transaction_reference,status,notes) VALUES(?,?,?,?,?,'pending','Customer payment awaiting validation')",[code('PAY'),$inv['invoice_id'],$amount,$method,$reference?:null]);
+                $paymentId=(int)$pdo->lastInsertId();
+                notify_role('Accountant/Cashier','payment_pending','Payment awaiting validation','A customer submitted a payment of '.money($amount).' for rental request '.$a['reservation_code'].'.','payment',$paymentId);
+                notify_customer($a['customer_id'],'payment_submitted','Payment submitted','Your payment of '.money($amount).' has been submitted and is awaiting cashier validation.','payment',$paymentId);
                 if($depositDue>0&&!q("SELECT 1 FROM deposit_transactions WHERE reservation_id=? AND transaction_type='received' AND status IN('pending','completed') LIMIT 1",[$a['reservation_id']])->fetch()){
                     q("INSERT INTO deposit_transactions(reservation_id,customer_id,transaction_type,amount,payment_method,reference_number,reason,status) VALUES(?,?,'received',?,?,?,'Rental security deposit','pending')",[$a['reservation_id'],$a['customer_id'],$depositDue,$method,$reference?:null]);
+                    notify_role('Accountant/Cashier','deposit_pending','Security deposit awaiting validation','A security deposit was submitted for rental request '.$a['reservation_code'].'.','deposit',$a['reservation_id']);
+                    notify_customer($a['customer_id'],'deposit_submitted','Security deposit submitted','Your security deposit is awaiting cashier validation.','deposit',$a['reservation_id']);
                 }
                 audit('submit_payment','agreement',$id,'Rental payment submitted for validation');
                 $pdo->commit();
@@ -70,6 +75,8 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             if(q("SELECT 1 FROM deposit_transactions WHERE reservation_id=? AND transaction_type='received' AND status='pending' LIMIT 1",[$a['reservation_id']])->fetch())throw new RuntimeException('Your security deposit is already awaiting cashier validation.');
             $reference=trim($_POST['ref']??'');
             q("INSERT INTO deposit_transactions(reservation_id,customer_id,transaction_type,amount,payment_method,reference_number,reason,status) VALUES(?,?,'received',?,?,?,'Rental security deposit','pending')",[$a['reservation_id'],$a['customer_id'],$depositAmount,$method,$reference?:null]);
+            notify_role('Accountant/Cashier','deposit_pending','Security deposit awaiting validation','A security deposit was submitted for rental request '.$a['reservation_code'].'.','deposit',$a['reservation_id']);
+            notify_customer($a['customer_id'],'deposit_submitted','Security deposit submitted','Your security deposit is awaiting cashier validation.','deposit',$a['reservation_id']);
             audit('submit_deposit','agreement',$id,'Security deposit submitted for validation');
             $pdo->commit();
             flash('Security deposit submitted. It must be validated by the cashier before you can sign.','info');
@@ -83,6 +90,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $pdo->beginTransaction();
             q("UPDATE rental_agreements SET renter_signed_name=?,renter_signed_at=NOW(),renter_signature_image=? WHERE agreement_id=? AND renter_signed_at IS NULL",[$customerName,$signature['data'],$id]);
             if((int)q('SELECT ROW_COUNT()')->fetchColumn()!==1)throw new RuntimeException('The renter signature has already been recorded. Reload the agreement to continue.');
+            notify_role('Rental Officer','renter_signed','Agreement needs countersignature',$customerName.' signed the agreement for rental request '.$a['reservation_code'].'.','agreement',$id);
             audit('sign_as_renter','agreement',$id);
             $pdo->commit();
             flash('Your signature has been recorded. The rental representative must countersign before the agreement is complete.','info');
@@ -97,6 +105,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $pdo->beginTransaction();
             q("UPDATE rental_agreements SET staff_signed_by=?,staff_signed_name=?,staff_signed_at=NOW(),staff_signature_image=?,status='signed',signed_at=NOW() WHERE agreement_id=? AND renter_signed_at IS NOT NULL AND staff_signed_at IS NULL",[user()['id'],$staffName,$signature['data'],$id]);
             if(q('SELECT ROW_COUNT()')->fetchColumn()!==1)throw new RuntimeException('The agreement changed before your signature could be saved. Reload and try again.');
+            notify_customer($a['customer_id'],'agreement_signed','Rental agreement complete','The rental officer has countersigned your agreement. It is complete and ready to download.','agreement',$id);
             audit('countersign','agreement',$id);
             $pdo->commit();
             flash('Both parties have signed. The completed agreement is ready to download.');
