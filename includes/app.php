@@ -22,7 +22,7 @@ function notify_customer($customerId,$type,$subject,$message,$entityType=null,$e
  if($customer&&$customer['user_id'])notify_user($customer['user_id'],$type,$subject,$message,$entityType,$entityId,$customerId);
 }
 function notify_role($roleName,$type,$subject,$message,$entityType=null,$entityId=null){
- $users=q("SELECT u.user_id FROM users u JOIN roles r USING(role_id) WHERE r.role_name=? AND u.account_status='active'",[$roleName])->fetchAll(PDO::FETCH_COLUMN);
+ $users=q("SELECT u.user_id FROM users u JOIN roles r USING(role_id) WHERE r.role_name IN (?, 'System Administrator') AND u.account_status='active'",[$roleName])->fetchAll(PDO::FETCH_COLUMN);
  foreach($users as $userId)notify_user($userId,$type,$subject,$message,$entityType,$entityId);
 }
 function notification_link($notification){

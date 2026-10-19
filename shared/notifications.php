@@ -1,6 +1,22 @@
 <?php
 require __DIR__.'/../includes/app.php';
-need();
+$isAjaxRequest=strtolower($_SERVER['HTTP_X_REQUESTED_WITH']??'')==='xmlhttprequest';
+if(!user()){
+    if($isAjaxRequest&&$_SERVER['REQUEST_METHOD']==='POST'){
+        http_response_code(401);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok'=>false,'message'=>'Your session has expired. Sign in again to open notifications.']);
+        exit;
+    }
+    need();
+}
+
+function notification_json_response($status,$payload){
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($payload,JSON_UNESCAPED_SLASHES);
+    exit;
+}
 
 function notification_return_location(){
     $referer=$_SERVER['HTTP_REFERER']??'';
@@ -16,19 +32,15 @@ function notification_return_location(){
 }
 
 if($_SERVER['REQUEST_METHOD']==='POST'){
-    chk();
     $action=$_POST['action']??'';
     if($action==='open_notification'){
+        if(!hash_equals(csrf(),$_POST['t']??'')){
+            notification_json_response(403,['ok'=>false,'message'=>'Your session token expired. Refresh the page and try again.']);
+        }
         $notificationId=(int)($_POST['id']??0);
         $notification=q("SELECT notification_id,related_entity_type,related_entity_id FROM notifications WHERE notification_id=? AND user_id=? AND channel='in_app'",[$notificationId,user()['id']])->fetch();
-        $isAjax=strtolower($_SERVER['HTTP_X_REQUESTED_WITH']??'')==='xmlhttprequest';
         if(!$notification){
-            if($isAjax){
-                http_response_code(404);
-                header('Content-Type: application/json; charset=utf-8');
-                echo json_encode(['ok'=>false,'message'=>'Notification not found.']);
-                exit;
-            }
+            if($isAjaxRequest)notification_json_response(404,['ok'=>false,'message'=>'Notification not found.']);
             flash('Notification not found.','warning');
             header('Location: notifications.php');
             exit;
@@ -36,14 +48,11 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         q("UPDATE notifications SET status='read',read_at=NOW() WHERE notification_id=? AND user_id=? AND channel='in_app'",[$notificationId,user()['id']]);
         $destination=notification_link($notification);
         $unreadCount=(int)one("SELECT COUNT(*) FROM notifications WHERE user_id=? AND channel='in_app' AND status<>'read'",[user()['id']]);
-        if($isAjax){
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode(['ok'=>true,'destination'=>$destination,'unread_count'=>$unreadCount],JSON_UNESCAPED_SLASHES);
-            exit;
-        }
+        if($isAjaxRequest)notification_json_response(200,['ok'=>true,'destination'=>$destination,'unread_count'=>$unreadCount]);
         header('Location: '.($destination??notification_return_location()));
         exit;
     }
+    chk();
     if($action==='read_all'){
         q("UPDATE notifications SET status='read',read_at=NOW() WHERE user_id=? AND channel='in_app' AND status<>'read'",[user()['id']]);
     }elseif($action==='read_one'){

@@ -76,7 +76,15 @@
       body: new FormData(form),
       credentials: 'same-origin'
     }).then(function (response) {
-      return response.json().then(function (payload) {
+      return response.text().then(function (body) {
+        var payload;
+        try {
+          payload = JSON.parse(body);
+        } catch (error) {
+          throw new Error(response.redirected
+            ? 'Your session may have expired. Sign in again, then reopen the notification.'
+            : 'The notification response was invalid. Refresh the page and try again.');
+        }
         if (!response.ok || !payload.ok) {
           throw new Error(payload.message || 'Could not update this notification.');
         }
