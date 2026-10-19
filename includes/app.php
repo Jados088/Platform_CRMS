@@ -26,20 +26,25 @@ function notify_role($roleName,$type,$subject,$message,$entityType=null,$entityI
  foreach($users as $userId)notify_user($userId,$type,$subject,$message,$entityType,$entityId);
 }
 function notification_link($notification){
- $role=user()['role'];
+ $role=user()['role']??'';
+ $type=$notification['related_entity_type']??'';
+ $id=(int)($notification['related_entity_id']??0);
  if($role==='Customer'){
-  if($notification['related_entity_type']==='agreement')return BASE.'shared/agreement.php?id='.(int)$notification['related_entity_id'];
-  if($notification['related_entity_type']==='customer')return BASE.'customer/my.php?tab=profile';
-  $tab=['invoice'=>'inv','payment'=>'pay','deposit'=>'pay'][$notification['related_entity_type']]??'res';
-  return BASE.'customer/my.php?tab='.$tab;
+  if($type==='agreement'&&$id>0)return BASE.'shared/agreement.php?id='.$id;
+  if($type==='customer')return BASE.'customer/my.php?tab=profile';
+  $tab=['invoice'=>'inv','payment'=>'pay','deposit'=>'pay','reservation'=>'res','rental'=>'res'][$type]??null;
+  return $tab?BASE.'customer/my.php?tab='.$tab:null;
  }
- if($notification['related_entity_type']==='customer')return BASE.'officer/customers.php';
- if($notification['related_entity_type']==='agreement')return BASE.'officer/agreements.php';
- if($notification['related_entity_type']==='rental')return BASE.($role==='Accountant/Cashier'?'cashier/finance.php?tab=inv':'officer/rentals.php');
- if($notification['related_entity_type']==='payment')return BASE.'cashier/finance.php?tab=pay';
- if($notification['related_entity_type']==='deposit')return BASE.'cashier/finance.php?tab=dep';
- if($notification['related_entity_type']==='invoice')return BASE.'cashier/finance.php?tab=inv&view='.(int)$notification['related_entity_id'];
- return BASE.'officer/reservations.php';
+ if($type==='customer'&&in_array($role,['System Administrator','Business Manager','Rental Officer','Accountant/Cashier'],true))return BASE.'officer/customers.php';
+ if($type==='agreement'&&in_array($role,['System Administrator','Business Manager','Rental Officer'],true))return BASE.'officer/agreements.php';
+ if($type==='reservation'&&in_array($role,['System Administrator','Business Manager','Rental Officer'],true))return BASE.'officer/reservations.php';
+ if($type==='rental'&&in_array($role,['System Administrator','Business Manager','Rental Officer'],true))return BASE.'officer/rentals.php';
+ if($type==='rental'&&$role==='Accountant/Cashier')return BASE.'cashier/finance.php?tab=inv';
+ if(in_array($type,['payment','deposit','invoice'],true)&&in_array($role,['System Administrator','Business Manager','Accountant/Cashier'],true)){
+  $tab=['payment'=>'pay','deposit'=>'dep','invoice'=>'inv'][$type];
+  return BASE.'cashier/finance.php?tab='.$tab.($type==='invoice'&&$id>0?'&view='.$id:'');
+ }
+ return null;
 }
 function create_reservation_invoice($reservationId,$issuerId=null){
  $reservation=q('SELECT r.*,v.make,v.model FROM reservations r JOIN vehicles v USING(vehicle_id) WHERE r.reservation_id=? FOR UPDATE',[$reservationId])->fetch();
@@ -48,8 +53,9 @@ function create_reservation_invoice($reservationId,$issuerId=null){
  $existing=q('SELECT invoice_id,status FROM invoices WHERE reservation_id=? ORDER BY invoice_id DESC LIMIT 1 FOR UPDATE',[$reservationId])->fetch();
  if($existing){
   if($existing['status']==='draft'){
-   q("UPDATE invoices SET status='issued',issued_by=?,issue_date=CURDATE(),due_date=CURDATE(),notes='Rental invoice created after agreement review' WHERE invoice_id=? AND status='draft'",[$issuerId,$existing['invoice_id']]);
+   q("UPDATE invoices SET status='issued',issued_by=?,issue_date=CURDATE(),due_date=CURDATE(),tax_amount=0,total_amount=GREATEST(0,subtotal-discount_amount),notes='Rental invoice created after agreement review' WHERE invoice_id=? AND status='draft'",[$issuerId,$existing['invoice_id']]);
    if((int)q('SELECT ROW_COUNT()')->fetchColumn()!==1)throw new RuntimeException('The invoice changed before it could be issued. Reload and try again.');
+    q('UPDATE reservations SET tax_amount=0 WHERE reservation_id=?',[$reservationId]);
     notify_customer($reservation['customer_id'],'invoice_issued','Invoice ready','Your rental invoice is ready to review and pay.','invoice',$existing['invoice_id']);
     return ['invoice_id'=>(int)$existing['invoice_id'],'created'=>false,'issued'=>true];
   }
@@ -58,8 +64,9 @@ function create_reservation_invoice($reservationId,$issuerId=null){
  }
  $subtotal=(float)$reservation['estimated_amount'];
  $discount=(float)$reservation['discount_amount'];
- $tax=(float)$reservation['tax_amount'];
+ $tax=0;
  $total=max(0,$subtotal-$discount+$tax);
+ q('UPDATE reservations SET tax_amount=0 WHERE reservation_id=?',[$reservationId]);
  q("INSERT INTO invoices(invoice_number,customer_id,reservation_id,issued_by,issue_date,due_date,subtotal,discount_amount,tax_amount,total_amount,status,notes) VALUES(?,?,?,?,CURDATE(),CURDATE(),?,?,?,?, 'issued','Rental invoice created after agreement review')",[code('INV'),$reservation['customer_id'],$reservationId,$issuerId,$subtotal,$discount,$tax,$total]);
  $invoiceId=(int)db()->lastInsertId();
  q("INSERT INTO invoice_items(invoice_id,item_type,description,quantity,unit_price,line_total) VALUES(?,'rental',?,?,?,?)",[$invoiceId,$reservation['make'].' '.$reservation['model'].' rental',$reservation['estimated_days'],$reservation['daily_rate'],$subtotal]);
@@ -116,6 +123,7 @@ return [['admin/dashboard.php','Dashboard','speedometer2',[$A]],['manager/dashbo
 ['manager/reports.php','Reports','bar-chart-line',[$A,$M]],['admin/users.php','Users','person-gear',[$A]],['admin/audit.php','Audit log','shield-check',[$A]],['admin/settings.php','Settings','gear',[$A]]];}
 function head($title){$u=user();$name=trim((string)($u['name']??''));$initials=user_initials($name);$cur=substr(parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH),strlen(BASE)).(isset($_GET['tab'])?'?tab='.$_GET['tab']:'');$f=flash();$alertType=$f&&in_array($f[1],['success','danger','warning','info','primary','secondary','light','dark'],true)?$f[1]:'info';$notificationCount=(int)one("SELECT COUNT(*) FROM notifications WHERE user_id=? AND channel='in_app' AND status<>'read'",[$u['id']]);$recentNotifications=q("SELECT notification_id,notification_type,subject,message,related_entity_type,related_entity_id,status,created_at FROM notifications WHERE user_id=? AND channel='in_app' ORDER BY notification_id DESC LIMIT 5",[$u['id']])->fetchAll();?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><?=e($title)?> | CRMS</title>
+<script>window.CRMS_BASE='<?=BASE?>';window.CRMS_CSRF='<?=e(csrf())?>';</script>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <link href="<?=BASE?>assets/style.css" rel="stylesheet"></head><body>
@@ -124,7 +132,7 @@ function head($title){$u=user();$name=trim((string)($u['name']??''));$initials=u
 <a href="<?=BASE.$h?>" class="<?=$h===$cur?'on':''?>" title="<?=e($l)?>"><i class="bi bi-<?=$i?>"></i><span class="lbl"><?=e($l)?></span></a>
 <?php } } ?><a href="<?=BASE?>logout.php" class="mt-auto signout-link"><i class="bi bi-box-arrow-left"></i><span class="lbl">Sign out</span></a></nav>
 <main><header class="top"><button type="button" class="btn btn-light btn-sm" id="tg" aria-label="Toggle navigation"><i class="bi bi-layout-sidebar"></i></button><h1><?=e($title)?></h1>
-<div class="dropdown ms-auto notification-dropdown"><button class="btn btn-light position-relative" type="button" id="notificationMenu" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notifications, <?=$notificationCount?> unread"><i class="bi bi-bell"></i><?php if($notificationCount):?><span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger"><?=e($notificationCount>99?'99+':$notificationCount)?></span><?php endif;?></button><div class="dropdown-menu dropdown-menu-end notification-menu" aria-labelledby="notificationMenu"><div class="d-flex justify-content-between align-items-center px-3 py-2"><strong>Notifications</strong><?php if($notificationCount):?><span class="small text-muted"><?=$notificationCount?> unread</span><?php endif;?></div><div class="dropdown-divider"></div><?php if(!$recentNotifications):?><p class="small text-muted px-3 mb-2">You have no notifications.</p><?php else:foreach($recentNotifications as $notification):?><a class="dropdown-item notification-item<?=$notification['status']==='read'?'':' unread'?>" href="<?=e(notification_link($notification))?>"><strong><?=e($notification['subject']?:'Update')?></strong><span><?=e($notification['message'])?></span><small><?=e($notification['created_at'])?></small></a><?php endforeach;endif;?><div class="dropdown-divider"></div><a class="dropdown-item text-center small" href="<?=BASE?>shared/notifications.php">View all notifications</a></div></div>
+<div class="dropdown ms-auto notification-dropdown"><button class="btn btn-light position-relative notification-trigger<?=$notificationCount?' has-unread':''?>" type="button" id="notificationMenu" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notifications, <?=$notificationCount?> unread"><i class="bi bi-bell-fill notification-bell-icon"></i><?php if($notificationCount):?><span id="notificationUnreadBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger"><?=e($notificationCount>99?'99+':$notificationCount)?></span><?php endif;?></button><div class="dropdown-menu dropdown-menu-end notification-menu" aria-labelledby="notificationMenu"><div class="d-flex justify-content-between align-items-center px-3 py-2"><strong>Notifications</strong><?php if($notificationCount):?><span id="notificationUnreadSummary" class="small text-muted"><?=$notificationCount?> unread</span><?php endif;?></div><div class="dropdown-divider"></div><?php if(!$recentNotifications):?><p class="small text-muted px-3 mb-2">You have no notifications.</p><?php else:foreach($recentNotifications as $notification):$notificationTarget=notification_link($notification);?><form method="post" action="<?=BASE?>shared/notifications.php" class="notification-open-form" data-notification-form><?=csrf_f()?><input type="hidden" name="action" value="open_notification"><input type="hidden" name="id" value="<?=e($notification['notification_id'])?>"><button type="submit" class="dropdown-item notification-item<?=$notification['status']==='read'?'':' unread'?>" aria-label="<?=e($notification['subject']?:'Update')?><?=e($notificationTarget?'':' (mark read only)')?>"><strong><?=e($notification['subject']?:'Update')?></strong><span><?=e($notification['message'])?></span><small><?=e($notification['created_at'])?><?=$notificationTarget?'':' · Mark read only'?></small></button></form><?php endforeach;endif;?><div class="dropdown-divider"></div><a class="dropdown-item text-center small" href="<?=BASE?>shared/notifications.php">View all notifications</a></div></div>
 <div class="dropdown"><button class="profile-link profile-menu-button" type="button" id="profileMenu" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Open account menu for <?=e($name)?>"><span class="profile-avatar"><?=e($initials)?></span><span class="profile-copy small text-end"><b><?=e($name)?></b><br><span class="text-muted"><?=e($u['role'])?></span></span><i class="bi bi-chevron-down profile-chevron"></i></button><ul class="dropdown-menu dropdown-menu-end profile-dropdown" aria-labelledby="profileMenu"><?php if($u['role']==='Customer'){?><li><a class="dropdown-item" href="<?=BASE?>customer/my.php?tab=profile"><i class="bi bi-person-circle me-2"></i>My profile</a></li><li><hr class="dropdown-divider"></li><?php }?><li><a class="dropdown-item signout-item" href="<?=BASE?>logout.php"><i class="bi bi-box-arrow-right me-2"></i>Sign out</a></li></ul></div></header><div class="content">
 <?php if($f){?><div class="alert alert-<?=$alertType?> alert-dismissible"><?=e($f[0])?><button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Dismiss notification"></button></div><?php }}
 function foot(){?></div><footer class="app-footer"><span>&copy; <?=date('Y')?> CRMS · Car Rental Management System</span><span>Reliable journeys, professionally managed.</span></footer></main></div><script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

@@ -4,7 +4,7 @@ need();
 if(user()['role']!=='Customer'&&!in_array(user()['role'],['System Administrator','Business Manager','Rental Officer','Accountant/Cashier'],true)){http_response_code(403);exit('Access denied');}
 ensure_agreement_signature_schema();
 $id=(int)($_GET['id']??0);
-$a=q('SELECT a.*,r.reservation_code,r.pickup_datetime,r.return_datetime,r.pickup_location,r.return_location,r.estimated_days,r.estimated_amount,r.tax_amount,r.discount_amount,r.status AS reservation_status,c.user_id,c.first_name,c.last_name,c.phone,c.email,c.identification_type,c.identification_number,c.driving_license_number,v.make,v.model,v.registration_no,v.colour FROM rental_agreements a JOIN reservations r USING(reservation_id) JOIN customers c ON c.customer_id=a.customer_id JOIN vehicles v ON v.vehicle_id=a.vehicle_id WHERE a.agreement_id=?',[$id])->fetch();
+$a=q('SELECT a.*,r.reservation_code,r.pickup_datetime,r.return_datetime,r.pickup_location,r.return_location,r.estimated_days,r.estimated_amount,r.tax_amount,r.discount_amount,r.status AS reservation_status,c.user_id,c.first_name,c.last_name,c.phone,c.email,c.identification_type,c.identification_number,v.make,v.model,v.registration_no,v.colour FROM rental_agreements a JOIN reservations r USING(reservation_id) JOIN customers c ON c.customer_id=a.customer_id JOIN vehicles v ON v.vehicle_id=a.vehicle_id WHERE a.agreement_id=?',[$id])->fetch();
 if(!$a||(user()['role']==='Customer'&&(int)$a['user_id']!==(int)user()['id'])){http_response_code(404);exit('Not found');}
 $inv=q('SELECT * FROM vw_invoice_balances WHERE reservation_id=? ORDER BY invoice_id DESC LIMIT 1',[$a['reservation_id']])->fetch();
 $own=user()['role']==='Customer';
@@ -122,7 +122,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
 
 head('Rental agreement '.$a['agreement_number']);
 $fullName=trim($a['first_name'].' '.$a['last_name']);
-$total=(float)$a['estimated_amount']+(float)$a['tax_amount']-(float)$a['discount_amount'];
+$total=$inv&&$inv['status']!=='draft'?(float)$inv['total_amount']:max(0,(float)$a['estimated_amount']-(float)$a['discount_amount']);
 $pendingPayments=$inv?q("SELECT payment_number,amount,payment_method,transaction_reference,payment_date FROM payments WHERE invoice_id=? AND status='pending' ORDER BY payment_id DESC",[$inv['invoice_id']])->fetchAll():[];
 ?>
 <div class="rental-process mb-4 noprint" aria-label="Rental application progress">
@@ -136,7 +136,6 @@ $pendingPayments=$inv?q("SELECT payment_number,amount,payment_method,transaction
 <div class="table-responsive"><table class="table agreement-table"><tbody>
 <tr><th scope="row">Renter</th><td><?=e($fullName)?></td></tr>
 <tr><th scope="row">Identification</th><td><?=e(ucfirst(str_replace('_',' ',$a['identification_type']??'Not provided')).' '.($a['identification_number']??''))?></td></tr>
-<tr><th scope="row">Driving licence</th><td><?=e($a['driving_license_number']?:'Not provided')?></td></tr>
 <tr><th scope="row">Contact</th><td><?=e($a['phone'])?> · <?=e($a['email']??'')?></td></tr>
 <tr><th scope="row">Vehicle</th><td><?=e($a['make'].' '.$a['model'].' · '.$a['registration_no'])?></td></tr>
 <tr><th scope="row">Rental period</th><td><?=e($a['pickup_datetime'])?> at <?=e($a['pickup_location'])?> to <?=e($a['return_datetime'])?> at <?=e($a['return_location'])?> (<?=e($a['estimated_days']+0)?> days)</td></tr>
@@ -144,7 +143,6 @@ $pendingPayments=$inv?q("SELECT payment_number,amount,payment_method,transaction
 <div class="table-responsive mt-3"><table class="table agreement-table agreement-costs"><thead><tr><th scope="col">Charge</th><th scope="col" class="text-end">Amount</th></tr></thead><tbody>
 <tr><td>Daily rate</td><td class="text-end"><?=money($a['agreed_daily_rate'])?></td></tr>
 <tr><td>Rental (<?=e($a['estimated_days']+0)?> days)</td><td class="text-end"><?=money($a['estimated_amount'])?></td></tr>
-<tr><td>VAT</td><td class="text-end"><?=money($a['tax_amount'])?></td></tr>
 <?php if((float)$a['discount_amount']>0):?><tr><td>Discount</td><td class="text-end">-<?=money($a['discount_amount'])?></td></tr><?php endif;?>
 <tr class="fw-bold"><td>Total invoice</td><td class="text-end"><?=money($total)?></td></tr>
 <tr><td>Refundable security deposit</td><td class="text-end"><?=money($depositDue)?></td></tr>

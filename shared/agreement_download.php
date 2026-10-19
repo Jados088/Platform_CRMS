@@ -4,7 +4,7 @@ need();
 if(user()['role']!=='Customer'&&!in_array(user()['role'],['System Administrator','Business Manager','Rental Officer'],true)){http_response_code(403);exit('Access denied');}
 ensure_agreement_signature_schema();
 $id=(int)($_GET['id']??0);
-$a=q('SELECT a.*,r.reservation_code,r.pickup_datetime,r.return_datetime,r.pickup_location,r.return_location,r.estimated_days,r.estimated_amount,r.tax_amount,r.discount_amount,c.user_id,c.first_name,c.last_name,c.phone,c.email,c.identification_type,c.identification_number,c.driving_license_number,v.make,v.model,v.registration_no FROM rental_agreements a JOIN reservations r USING(reservation_id) JOIN customers c ON c.customer_id=a.customer_id JOIN vehicles v ON v.vehicle_id=a.vehicle_id WHERE a.agreement_id=?',[$id])->fetch();
+$a=q('SELECT a.*,r.reservation_code,r.pickup_datetime,r.return_datetime,r.pickup_location,r.return_location,r.estimated_days,r.estimated_amount,r.tax_amount,r.discount_amount,c.user_id,c.first_name,c.last_name,c.phone,c.email,c.identification_type,c.identification_number,v.make,v.model,v.registration_no FROM rental_agreements a JOIN reservations r USING(reservation_id) JOIN customers c ON c.customer_id=a.customer_id JOIN vehicles v ON v.vehicle_id=a.vehicle_id WHERE a.agreement_id=?',[$id])->fetch();
 if(!$a||(user()['role']==='Customer'&&(int)$a['user_id']!==(int)user()['id'])){http_response_code(404);exit('Not found');}
 if(empty($a['renter_signed_at'])||empty($a['staff_signed_at'])){http_response_code(409);exit('The agreement must be signed by both parties before it can be downloaded.');}
 
@@ -83,16 +83,14 @@ $rule();
 $section('Renter and vehicle');
 $field('Renter',trim($a['first_name'].' '.$a['last_name']));
 $field('Identification',ucfirst(str_replace('_',' ',$a['identification_type']??'Not provided')).' '.($a['identification_number']??''));
-$field('Driving licence',$a['driving_license_number']?:'Not provided');
 $field('Contact',($a['phone']?:'').'   '.$a['email']);
 $field('Vehicle',$a['make'].' '.$a['model'].' | '.$a['registration_no']);
 $field('Rental period',$a['pickup_datetime'].' at '.$a['pickup_location'].' to '.$a['return_datetime'].' at '.$a['return_location'].' ('.($a['estimated_days']+0).' days)');
 $section('Charges');
 $field('Agreed daily rate',money($a['agreed_daily_rate']));
 $field('Rental',money($a['estimated_amount']));
-$field('VAT',money($a['tax_amount']));
 if((float)$a['discount_amount']>0)$field('Discount','-'.money($a['discount_amount']));
-$field('Total invoice',money((float)$a['estimated_amount']+(float)$a['tax_amount']-(float)$a['discount_amount']));
+$field('Total invoice',money(max(0,(float)$a['estimated_amount']-(float)$a['discount_amount'])));
 $field('Refundable security deposit',money($a['security_deposit']));
 $section('Terms and conditions');
 $write($a['terms_and_conditions']?:'No additional terms and conditions were recorded.',10,50,false);

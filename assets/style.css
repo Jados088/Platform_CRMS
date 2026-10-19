@@ -147,16 +147,37 @@ main {
 .profile-menu-button:hover, .profile-menu-button:focus { color: inherit; }
 .profile-menu-button:focus-visible { border-radius: 10px; outline: 3px solid rgba(57, 117, 168, .3); outline-offset: 4px; }
 .profile-copy b { color: var(--ink); }
-.notification-dropdown > .btn { display: grid; width: 38px; height: 38px; place-items: center; border-color: var(--line); background: #fff; color: var(--ink); }
+.notification-dropdown > .btn { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid #c8d9e1; border-radius: 13px; background: linear-gradient(145deg, #fff, #edf5f8); color: #315d71; box-shadow: 0 4px 12px rgba(31, 77, 95, .1); transition: transform .18s ease, box-shadow .18s ease, background .18s ease; }
+.notification-dropdown > .btn:hover, .notification-dropdown > .btn:focus-visible { background: linear-gradient(145deg, #fff, #deedf2); box-shadow: 0 6px 16px rgba(31, 77, 95, .17); transform: translateY(-1px); }
+.notification-dropdown > .btn:focus-visible { outline: 3px solid rgba(57, 117, 168, .3); outline-offset: 3px; }
+.notification-trigger.has-unread { color: #1d6176; }
+.notification-trigger.has-unread .notification-bell-icon { animation: notification-bell 2.8s ease-in-out infinite; transform-origin: 50% 10%; }
+.notification-trigger .badge { min-width: 19px; font-size: .65rem; box-shadow: 0 0 0 2px #fff; }
+@keyframes notification-bell { 0%, 86%, 100% { transform: rotate(0); } 89% { transform: rotate(12deg); } 92% { transform: rotate(-10deg); } 95% { transform: rotate(6deg); } 98% { transform: rotate(-4deg); } }
 .notification-menu { width: min(360px, calc(100vw - 24px)); max-height: min(70vh, 520px); overflow-y: auto; margin-top: 10px !important; padding: 6px; border-color: var(--line); border-radius: 11px; box-shadow: 0 12px 30px rgba(22, 52, 61, .14); }
-.notification-item { display: grid; gap: 3px; overflow: hidden; padding: 10px 12px; border-radius: 7px; white-space: normal; }
+.notification-open-form { margin: 0; }
+.notification-item { display: grid; width: 100%; gap: 3px; overflow: hidden; padding: 10px 12px; border: 0; border-radius: 7px; text-align: left; white-space: normal; }
 .notification-item strong, .notification-item span { overflow-wrap: anywhere; }
 .notification-item span { color: #52666c; font-size: .82rem; }
 .notification-item small { color: var(--muted); font-size: .72rem; }
-.notification-item.unread, .notification-row.unread { background: #f1f7fb; }
+.notification-item.unread { position: relative; border-left: 3px solid #287a9c; background: #eaf5fa; }
+.notification-item.unread strong { color: #163f53; font-weight: 750; }
+.notification-item.unread::after { position: absolute; top: 13px; right: 12px; width: 8px; height: 8px; border-radius: 50%; background: #1681a5; content: ""; }
+.notification-item:not(.unread) { background: #fff; color: #63737a; }
 .notification-list { overflow: hidden; border-color: var(--line); border-radius: 10px; box-shadow: var(--shadow); }
-.notification-row { padding: 16px; }
+.notification-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
 .notification-row p { overflow-wrap: anywhere; }
+.notification-open-list-form { min-width: 0; flex: 1; }
+.notification-row-button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 16px; padding: 5px 8px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: inherit; text-align: left; }
+.notification-row-button:focus-visible { outline: 3px solid rgba(57, 117, 168, .3); outline-offset: 2px; }
+.notification-row.unread { border-left: 4px solid #287a9c; background: #eaf5fa; }
+.notification-row.unread .notification-row-button strong { color: #163f53; font-weight: 750; }
+.notification-row:not(.unread) .notification-row-button { color: #63737a; }
+.notification-row-copy { display: grid; min-width: 0; gap: 3px; }
+.notification-row-copy > span { overflow-wrap: anywhere; }
+.notification-open-label { flex: 0 0 auto; color: #286b87; font-size: .82rem; font-weight: 650; }
+.notification-row:not(.unread) .notification-open-label { color: #74838a; }
+@media (prefers-reduced-motion: reduce) { .notification-trigger.has-unread .notification-bell-icon { animation: none; } }
 .min-width-0 { min-width: 0; }
 .profile-avatar {
   display: grid;

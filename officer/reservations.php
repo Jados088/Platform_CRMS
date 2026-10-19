@@ -64,7 +64,7 @@ head('Reservations');?>
 <td><?=e($reservation['first_name'].' '.$reservation['last_name'])?></td>
 <td><?=e($reservation['make'].' '.$reservation['model'])?><small class="d-block text-muted"><?=e($reservation['registration_no'])?></small></td>
 <td class="small text-nowrap"><?=e($reservation['pickup_datetime'])?><br><?=e($reservation['return_datetime'])?></td>
-<td class="text-nowrap"><?=money($reservation['estimated_amount']+$reservation['tax_amount']-$reservation['discount_amount'])?></td>
+<td class="text-nowrap"><?=money(max(0,$reservation['estimated_amount']-$reservation['discount_amount']))?></td>
 <td><?php if($reservation['invoice_id']):?><strong><?=e($reservation['invoice_number'])?></strong><br><?=badge($reservation['invoice_status'])?><?php else:?>Not created<?php endif;?></td>
 <td><?php if($reservation['agreement_id']):?><?=badge($reservation['agreement_status'])?> <a class="btn btn-sm btn-outline-primary" aria-label="Open agreement for <?=e($reservation['reservation_code'])?>" href="<?=BASE?>shared/agreement.php?id=<?=$reservation['agreement_id']?>"><i class="bi bi-eye"></i></a><?php else:?>—<?php endif;?></td>
 <td><?=e($reservation['payment_count'])?></td>
