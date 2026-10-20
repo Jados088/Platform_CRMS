@@ -23,6 +23,34 @@
     });
   }
 
+  document.querySelectorAll('table').forEach(function (table) {
+    var bodyRows = Array.from(table.tBodies).reduce(function (rows, body) {
+      return rows.concat(Array.from(body.rows));
+    }, []);
+    var headerCount = table.tHead && table.tHead.rows.length
+      ? Array.from(table.tHead.rows[table.tHead.rows.length - 1].cells).reduce(function (count, cell) {
+        return count + cell.colSpan;
+      }, 0)
+      : 0;
+    var emptyRow = bodyRows.length === 1
+      && bodyRows[0].cells.length === 1
+      && bodyRows[0].cells[0].colSpan > 1
+      && bodyRows[0].cells[0].colSpan >= headerCount;
+
+    if (bodyRows.length && !emptyRow) return;
+
+    var message = emptyRow
+      ? bodyRows[0].cells[0].textContent.trim()
+      : 'No records found.';
+    table.style.display = 'none';
+
+    var emptyState = document.createElement('div');
+    emptyState.className = 'table-empty-state';
+    emptyState.setAttribute('role', 'status');
+    emptyState.textContent = message || 'No records found.';
+    table.parentNode.insertBefore(emptyState, table.nextSibling);
+  });
+
   document.querySelectorAll('input[type="password"]').forEach(function (input) {
     var group = document.createElement('div');
     group.className = 'input-group password-field';

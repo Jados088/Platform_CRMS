@@ -178,6 +178,7 @@ main {
 .notification-open-label { flex: 0 0 auto; color: #286b87; font-size: .82rem; font-weight: 650; }
 .notification-row:not(.unread) .notification-open-label { color: #74838a; }
 @media (prefers-reduced-motion: reduce) { .notification-trigger.has-unread .notification-bell-icon { animation: none; } }
+.table-empty-state { padding: 1.5rem; border: 1px dashed var(--line); border-radius: 10px; background: #f8fafb; color: var(--muted); text-align: center; }
 .min-width-0 { min-width: 0; }
 .profile-avatar {
   display: grid;
